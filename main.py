@@ -14,7 +14,7 @@ from sheets import (
     update_account_balance, update_budget_category, delete_last_transaction,
     get_monthly_budget, set_monthly_budget, get_sheet
 )
-from groq_ai import chat as groq_chat, parse_sms_with_groq
+from ai import chat as groq_chat, parse_sms_with_groq
 from config import USER_NAME
 
 app = FastAPI(title="Hey Pulkit!")
