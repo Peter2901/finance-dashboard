@@ -8,22 +8,21 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 USER_NAME = os.getenv("USER_NAME", "Pulkit")
 
-SYSTEM_PROMPT = f"""You are a smart personal finance assistant for {USER_NAME}. 
-You help track expenses, budgets, loans and bank balances.
+SYSTEM_PROMPT = """You are a smart personal finance assistant. 
+Help track expenses, budgets, loans and bank balances.
 When asked to DO something, respond with an action block like:
 <action>
-{{"type": "update_budget", "category": "Food", "amount": 4000}}
+{"type": "update_budget", "category": "Food", "amount": 4000}
 </action>
 
 Action types:
-- update_budget: {{"type": "update_budget", "category": "Food", "amount": 4000}}
-- add_transaction: {{"type": "add_transaction", "amount": 500, "merchant": "Swiggy", "category": "Food", "is_one_time": false}}
-- update_balance: {{"type": "update_balance", "bank": "Kotak Bank", "balance": 24000}}
-- set_monthly_budget: {{"type": "set_monthly_budget", "amount": 8000}}
-- delete_last_transaction: {{"type": "delete_last_transaction"}}
+- update_budget: {"type": "update_budget", "category": "Food", "amount": 4000}
+- add_transaction: {"type": "add_transaction", "amount": 500, "merchant": "Swiggy", "category": "Food", "is_one_time": false}
+- update_balance: {"type": "update_balance", "bank": "Kotak Bank", "balance": 24000}
+- set_monthly_budget: {"type": "set_monthly_budget", "amount": 8000}
+- delete_last_transaction: {"type": "delete_last_transaction"}
 
 Be friendly and casual. Reply in Hinglish if user writes in Hinglish.
-Today: {date.today().strftime('%d %B %Y')}
 """
 
 def _call_groq(messages: list) -> str:
@@ -32,7 +31,7 @@ def _call_groq(messages: list) -> str:
         "Content-Type": "application/json",
     }
     payload = {
-        "model": "llama3-8b-8192",
+        "model": "llama-3.1-8b-instant",
         "messages": messages,
         "max_tokens": 500,
         "temperature": 0.7,
@@ -45,7 +44,7 @@ def _call_groq(messages: list) -> str:
 def chat(messages: list, context: dict = None) -> dict:
     system = SYSTEM_PROMPT
     if context:
-        system += f"\n\nUser data:\n{json.dumps(context, indent=2)}"
+        system += f"\n\nUser financial data:\n{json.dumps(context, indent=2)}"
 
     full_messages = [{"role": "system", "content": system}] + messages
 
@@ -66,11 +65,12 @@ def chat(messages: list, context: dict = None) -> dict:
     return {"reply": reply_text, "action": action}
 
 def parse_sms_with_groq(sms_text: str, daily_limit: float) -> dict:
-    prompt = f"""Parse this SMS and return ONLY JSON (no extra text):
+    prompt = f"""Parse this SMS and return ONLY a JSON object with no extra text:
 SMS: "{sms_text}"
 Daily limit: {daily_limit}
 
-Return: {{"type": "transaction|balance_update|unknown", "amount": number|null, "merchant": "string|null", "category": "Food|Groceries|Transport|Bills|Entertainment|Health|EMI|Other", "is_unusual": bool, "bank": "UCO Bank|Kotak Bank|null", "balance": number|null, "needs_clarification": bool}}"""
+JSON format:
+{{"type": "transaction or balance_update or unknown", "amount": 0, "merchant": "name", "category": "Food or Groceries or Transport or Bills or Entertainment or Health or EMI or Other", "is_unusual": false, "bank": "UCO Bank or Kotak Bank or null", "balance": 0, "needs_clarification": false}}"""
 
     try:
         text = _call_groq([{"role": "user", "content": prompt}])
