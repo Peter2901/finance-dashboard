@@ -1,14 +1,12 @@
 import httpx
 import json
 import re
-from config import GROQ_API_KEY, USER_NAME
+import os
 from datetime import date
 
-GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-HEADERS = {
-    "Authorization": f"Bearer {GROQ_API_KEY}",
-    "Content-Type": "application/json",
-}
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+USER_NAME = os.getenv("USER_NAME", "Pulkit")
 
 SYSTEM_PROMPT = f"""You are a smart personal finance assistant for {USER_NAME}'s finance app called "Hey {USER_NAME}!".
 You can both answer questions AND perform actions on their data.
@@ -37,27 +35,35 @@ Today's date is {date.today().strftime('%d %B %Y')}.
 """
 
 
-def _call_groq(messages: list, max_tokens: int = 500, temperature: float = 0.7) -> str:
+def _call_gemini(prompt: str) -> str:
+    url = f"{GEMINI_URL}?key={GEMINI_API_KEY}"
     payload = {
-        "model": "llama3-70b-8192",
-        "messages": messages,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"maxOutputTokens": 500, "temperature": 0.7}
     }
     with httpx.Client(timeout=30) as client:
-        res = client.post(GROQ_URL, headers=HEADERS, json=payload)
+        res = client.post(url, json=payload)
         res.raise_for_status()
-        return res.json()["choices"][0]["message"]["content"]
+        return res.json()["candidates"][0]["content"]["parts"][0]["text"]
 
 
 def chat(messages: list, context: dict = None) -> dict:
-    system = SYSTEM_PROMPT
+    # Build full prompt
+    context_str = ""
     if context:
-        system += f"\n\nCurrent user data:\n{json.dumps(context, indent=2)}"
+        context_str = f"\n\nCurrent user financial data:\n{json.dumps(context, indent=2)}"
 
-    full_messages = [{"role": "system", "content": system}] + messages
+    conversation = ""
+    for msg in messages:
+        role = "User" if msg["role"] == "user" else "Assistant"
+        conversation += f"\n{role}: {msg['content']}"
 
-    reply_text = _call_groq(full_messages)
+    full_prompt = f"{SYSTEM_PROMPT}{context_str}\n\nConversation:{conversation}\n\nAssistant:"
+
+    try:
+        reply_text = _call_gemini(full_prompt)
+    except Exception as e:
+        return {"reply": f"AI error: {str(e)}", "action": None}
 
     # Extract action if present
     action = None
@@ -73,22 +79,24 @@ def chat(messages: list, context: dict = None) -> dict:
 
 
 def parse_sms_with_groq(sms_text: str, daily_limit: float) -> dict:
-    prompt = f"""Parse this bank/payment SMS and return ONLY a JSON object (no other text):
+    prompt = f"""Parse this bank/payment SMS and return ONLY a JSON object (no markdown, no extra text):
 SMS: "{sms_text}"
-User's daily limit: {daily_limit}
+User daily limit: {daily_limit}
 
-Return JSON with these fields:
-- type: "transaction" | "balance_update" | "unknown"
-- amount: number (if transaction)
-- merchant: string (if transaction)
-- category: "Food"|"Groceries"|"Transport"|"Bills"|"Entertainment"|"Health"|"EMI"|"Other"
-- is_unusual: boolean (true if amount > 5x daily limit)
-- bank: "UCO Bank"|"Kotak Bank"|"HDFC Bank"|null
-- balance: number (available balance if mentioned, else null)
-- needs_clarification: boolean (true if unusual or unclear)
-"""
+Return JSON:
+{{
+  "type": "transaction" or "balance_update" or "unknown",
+  "amount": number or null,
+  "merchant": "string" or null,
+  "category": "Food" or "Groceries" or "Transport" or "Bills" or "Entertainment" or "Health" or "EMI" or "Other",
+  "is_unusual": true or false,
+  "bank": "UCO Bank" or "Kotak Bank" or "HDFC Bank" or null,
+  "balance": number or null,
+  "needs_clarification": true or false
+}}"""
+
     try:
-        text = _call_groq([{"role": "user", "content": prompt}], max_tokens=200, temperature=0.1)
+        text = _call_gemini(prompt)
         text = re.sub(r"```json|```", "", text).strip()
         return json.loads(text)
     except:
