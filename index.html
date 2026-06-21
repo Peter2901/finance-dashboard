@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <meta name="theme-color" content="#1a2e1a"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Hey Pulkit!"/>
+  <title>Hey Pulkit!</title>
+  <link rel="manifest" href="/manifest.json"/>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-logo" id="header-logo">
+    <span class="logo-wave">👋</span>
+    <span class="logo-text">Hey Pulkit!</span>
+  </div>
+  <div class="header-banks" id="header-banks"></div>
+  <button class="sync-btn" id="sync-btn" onclick="syncSMS()">↻ Sync</button>
+</header>
+
+<!-- Hero -->
+<div class="hero">
+  <div class="hero-label">Available today</div>
+  <div class="hero-amount" id="hero-amount">₹—</div>
+  <div class="hero-meta">
+    <span id="hero-spent">₹0 spent</span>
+    <span class="hero-sep">·</span>
+    <span id="hero-limit">₹— limit</span>
+  </div>
+  <div class="progress-track">
+    <div class="progress-fill" id="progress-fill"></div>
+  </div>
+  <div class="rollover-pill" id="rollover-pill"></div>
+</div>
+
+<!-- Alert Banner -->
+<div class="alert-banner" id="alert-banner" style="display:none">
+  <div class="alert-inner" id="alert-inner"></div>
+</div>
+
+<!-- Main Content -->
+<main class="main" id="main-content">
+
+  <!-- HOME -->
+  <section class="tab-section active" id="tab-home">
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Monthly budget</div>
+        <div class="stat-value green" id="stat-monthly">₹—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Daily base</div>
+        <div class="stat-value" id="stat-daily">₹—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Month spent</div>
+        <div class="stat-value" id="stat-month-spent">₹—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Next EMI</div>
+        <div class="stat-value red" id="stat-emi">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Add expense</div>
+      <div class="add-form">
+        <div class="add-row">
+          <input type="number" id="qa-amount" class="input" placeholder="₹ Amount" step="0.01"/>
+          <input type="text"   id="qa-merchant" class="input" placeholder="Where?"/>
+        </div>
+        <div class="add-row">
+          <select id="qa-cat" class="input select" style="flex:1"></select>
+          <label class="one-time-label">
+            <input type="checkbox" id="qa-onetime"/> One-time
+          </label>
+          <button class="btn-primary" onclick="addExpense()">+ Add</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title-row">
+        <div class="card-title">7-day history</div>
+      </div>
+      <canvas id="chart" height="160"></canvas>
+    </div>
+
+    <div class="card">
+      <div class="card-title-row">
+        <div class="card-title">Recent</div>
+        <button class="card-link" onclick="switchTab('spends')">See all</button>
+      </div>
+      <div id="tx-mini"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title-row">
+        <div class="card-title">Budgets</div>
+        <button class="card-link" onclick="switchTab('budgets')">Edit</button>
+      </div>
+      <div id="budget-mini"></div>
+    </div>
+
+  </section>
+
+  <!-- SPENDS -->
+  <section class="tab-section" id="tab-spends">
+    <div class="card">
+      <div class="card-title">All transactions</div>
+      <div id="tx-full"></div>
+    </div>
+  </section>
+
+  <!-- LOANS -->
+  <section class="tab-section" id="tab-loans">
+    <div class="card">
+      <div class="card-title-row">
+        <div class="card-title">Loan tracker</div>
+        <button class="card-link" onclick="toggleLoanForm()">+ Add</button>
+      </div>
+      <div id="loan-list"></div>
+      <div id="loan-form" class="loan-form" style="display:none">
+        <input type="text"   id="lf-lender"      class="input" placeholder="Lender name"/>
+        <input type="number" id="lf-principal"    class="input" placeholder="Principal (₹)"/>
+        <input type="number" id="lf-outstanding"  class="input" placeholder="Outstanding (₹)"/>
+        <input type="number" id="lf-emi"          class="input" placeholder="EMI (₹)"/>
+        <input type="date"   id="lf-date"         class="input"/>
+        <input type="number" id="lf-foreclosure"  class="input" placeholder="Foreclosure amount (₹)"/>
+        <button class="btn-primary" style="width:100%" onclick="saveLoan()">Save loan</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Upload screenshot (OCR)</div>
+      <div class="upload-zone" onclick="document.getElementById('ocr-file').click()"
+           ondragover="event.preventDefault()" ondrop="handleDrop(event)">
+        <div class="upload-icon">📎</div>
+        <div class="upload-text">Tap to upload loan screenshot</div>
+      </div>
+      <input type="file" id="ocr-file" accept="image/*" style="display:none" onchange="runOCR(this.files[0])"/>
+      <div id="ocr-result" class="ocr-result"></div>
+    </div>
+  </section>
+
+  <!-- BUDGETS -->
+  <section class="tab-section" id="tab-budgets">
+    <div class="card budget-setter">
+      <div class="card-title">Monthly budget</div>
+      <div class="add-row">
+        <input type="number" id="monthly-input" class="input" placeholder="e.g. 5000"/>
+        <button class="btn-primary" onclick="setMonthly()">Set</button>
+      </div>
+      <div class="setter-info" id="setter-info"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title-row">
+        <div class="card-title">Categories</div>
+        <button class="card-link" onclick="addCatRow()">+ Add</button>
+      </div>
+      <div id="cat-editor"></div>
+      <div class="total-bar">
+        <span class="total-label">Total allocated</span>
+        <span class="total-val" id="total-allocated">₹0</span>
+      </div>
+      <button class="btn-primary" style="width:100%;margin-top:10px" onclick="saveAllBudgets()">Save budgets</button>
+    </div>
+  </section>
+
+  <!-- CHAT -->
+  <section class="tab-section" id="tab-chat">
+    <div class="card chat-card">
+      <div class="chat-messages" id="chat-messages">
+        <div class="msg-ai">
+          <div class="ai-av">G</div>
+          <div class="ai-bubble">
+            <p>Hey Pulkit! 👋 I'm your Groq AI assistant. Ask me anything or tell me to change something — budgets, expenses, balances. Hinglish bhi chalega!</p>
+          </div>
+        </div>
+      </div>
+      <div class="quick-replies">
+        <button class="qr" onclick="sendQuick('Aaj kitna spend kiya?')">Aaj kitna spend?</button>
+        <button class="qr" onclick="sendQuick('Food budget 4000 kar do')">Food budget change</button>
+        <button class="qr" onclick="sendQuick('Show my loans')">My loans</button>
+        <button class="qr" onclick="sendQuick('Am I over budget this month?')">Over budget?</button>
+      </div>
+      <div class="chat-input-row">
+        <input class="chat-input" id="chat-input" placeholder="Ask or tell Groq AI..."
+               onkeydown="if(event.key==='Enter')sendChat()"/>
+        <button class="chat-send" onclick="sendChat()">➤</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section class="tab-section" id="tab-settings">
+    <div class="card">
+      <div class="card-title">Bank balances</div>
+      <div id="accounts-list"></div>
+      <div class="add-row" style="margin-top:10px">
+        <input type="text"   id="bank-name"    class="input" placeholder="Bank name"/>
+        <input type="number" id="bank-balance" class="input" placeholder="Balance (₹)"/>
+        <button class="btn-primary" onclick="updateBalance()">Update</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Groq AI</div>
+      <div class="setting-row">
+        <div><div class="setting-label">Detect unusual spends</div><div class="setting-sub">Alert if 5x+ daily limit</div></div>
+        <div class="toggle active" onclick="this.classList.toggle('active')"></div>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">Auto-update bank balance</div><div class="setting-sub">From SMS available balance</div></div>
+        <div class="toggle active" onclick="this.classList.toggle('active')"></div>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">Auto-categorize SMS</div><div class="setting-sub">AI picks category</div></div>
+        <div class="toggle active" onclick="this.classList.toggle('active')"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Notifications</div>
+      <div class="setting-row">
+        <div><div class="setting-label">Daily limit alerts</div><div class="setting-sub">When 80% spent</div></div>
+        <div class="toggle active" onclick="this.classList.toggle('active')"></div>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">Loan due reminders</div><div class="setting-sub">3 days before EMI</div></div>
+        <div class="toggle active" onclick="this.classList.toggle('active')"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Install app</div>
+      <div class="install-hint">
+        <div class="install-icon">📱</div>
+        <div>
+          <div class="setting-label">Add to home screen</div>
+          <div class="setting-sub">Chrome → tap ⋮ → "Add to Home screen" to install as app</div>
+        </div>
+      </div>
+      <button class="btn-primary" style="width:100%;margin-top:10px" id="install-btn" onclick="installPWA()" style="display:none">Install App</button>
+    </div>
+  </section>
+
+</main>
+
+<!-- Bottom Nav -->
+<nav class="bottom-nav">
+  <div class="nav-item active" id="nav-home" onclick="switchTab('home')">
+    <div class="nav-icon">⬡</div><div class="nav-label">Home</div>
+  </div>
+  <div class="nav-item" id="nav-spends" onclick="switchTab('spends')">
+    <div class="nav-icon">↕</div><div class="nav-label">Spends</div>
+  </div>
+  <div class="nav-item" id="nav-loans" onclick="switchTab('loans')">
+    <div class="nav-icon">◎</div><div class="nav-label">Loans</div>
+  </div>
+  <div class="nav-item" id="nav-budgets" onclick="switchTab('budgets')">
+    <div class="nav-icon">▦</div><div class="nav-label">Budgets</div>
+  </div>
+  <div class="nav-item" id="nav-chat" onclick="switchTab('chat')">
+    <div class="nav-icon">💬</div><div class="nav-label">AI Chat</div>
+  </div>
+  <div class="nav-item" id="nav-settings" onclick="switchTab('settings')">
+    <div class="nav-icon">⚙</div><div class="nav-label">Settings</div>
+  </div>
+</nav>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>
